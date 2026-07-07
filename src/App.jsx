@@ -1467,11 +1467,19 @@ function ObjectifsPage() {
 // APP PROVIDER & MAIN APP
 // ═══════════════════════════════════════════════
 function AppProvider({ username, children }) {
-  const [profile, setProfile] = useState(() => {
-    const u = getUserData(username);
-    return u?.profile || defaultProfile();
-  });
+  const [profile, setProfile] = useState(null); // null = chargement
   const [notifMsg, setNotifMsg] = useState(null);
+  const pwdRef = React.useRef("");
+
+  // Charger le profil au démarrage
+  useEffect(() => {
+    getUserData(username).then(data => {
+      setProfile(data);
+    });
+    // Récupérer le mot de passe depuis le localStorage pour les saves
+    const db = JSON.parse(localStorage.getItem("santeplus_db") || "{}");
+    pwdRef.current = db[username]?.password || "";
+  }, [username]);
 
   const notify = useCallback((msg) => {
     setNotifMsg(msg);
@@ -1481,11 +1489,20 @@ function AppProvider({ username, children }) {
   const updateProfile = useCallback((partial) => {
     setProfile(prev => {
       const next = { ...prev, ...partial };
-      const u = getUserData(username);
-      setUserData(username, { ...u, profile: next });
+      // Sauvegarder en Supabase (fire & forget)
+      saveUserData(username, pwdRef.current, next).catch(() => {});
       return next;
     });
   }, [username]);
+
+  // Écran de chargement
+  if (!profile) return (
+    <div style={{ height:"100%", display:"flex", alignItems:"center", justifyContent:"center",
+      background:"var(--bg)", flexDirection:"column", gap:12 }}>
+      <div style={{ fontSize:36 }}>💚</div>
+      <div style={{ color:"var(--sec)", fontSize:13 }}>Chargement…</div>
+    </div>
+  );
 
   return (
     <AppContext.Provider value={{ profile, updateProfile, notify }}>
@@ -1494,6 +1511,7 @@ function AppProvider({ username, children }) {
     </AppContext.Provider>
   );
 }
+  
 
 function AuthProvider({ children }) {
   const [username, setUsername] = useState(() => {
