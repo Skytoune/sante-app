@@ -10,48 +10,56 @@ function useAuth() { return useContext(AuthContext); }
 function useApp() { return useContext(AppContext); }
 
 // ═══════════════════════════════════════════════
-// STORAGE HELPERS
+// SUPABASE CONFIG — remplacer par vos vraies valeurs
 // ═══════════════════════════════════════════════
-const DB_KEY = "santeplus_db";
+const SB_URL = "https://VOTRE_URL.supabase.co";  // ← coller ici
+const SB_KEY = "eyJ...VOTRE_CLE...";              // ← coller ici
 
-function loadDB() {
-  try { return JSON.parse(localStorage.getItem(DB_KEY) || "{}"); }
-  catch { return {}; }
+const SB_HEADERS = {
+  "apikey": SB_KEY,
+  "Authorization": `Bearer ${SB_KEY}`,
+  "Content-Type": "application/json",
+};
+
+async function sbGet(username) {
+  const res = await fetch(
+    `${SB_URL}/rest/v1/profiles?username=eq.${username}&limit=1`,
+    { headers: SB_HEADERS }
+  );
+  const rows = await res.json();
+  return rows[0] || null;
 }
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
+
+async function sbUpsert(username, password, data) {
+  await fetch(`${SB_URL}/rest/v1/profiles`, {
+    method: "POST",
+    headers: { ...SB_HEADERS, "Prefer": "resolution=merge-duplicates" },
+    body: JSON.stringify({ username, password, data, updated_at: new Date().toISOString() }),
+  });
 }
-function getUserData(username) {
-  const db = loadDB();
-  return db[username] || null;
+
+// ═══════════════════════════════════════════════
+// STORAGE HELPERS — remplace localStorage
+// ═══════════════════════════════════════════════
+async function userExists(username) {
+  const row = await sbGet(username);
+  return !!row;
 }
-function setUserData(username, data) {
-  const db = loadDB();
-  db[username] = data;
-  saveDB(db);
+async function checkPassword(username, password) {
+  const row = await sbGet(username);
+  return row && row.password === password;
 }
-function userExists(username) {
-  return !!loadDB()[username];
-}
-function createUser(username, password) {
-  if (userExists(username)) return false;
-  setUserData(username, { password, profile: defaultProfile() });
+async function createUser(username, password) {
+  if (await userExists(username)) return false;
+  await sbUpsert(username, password, defaultProfile());
   return true;
 }
-function checkPassword(username, password) {
-  const u = getUserData(username);
-  return u && u.password === password;
+async function getUserData(username) {
+  const row = await sbGet(username);
+  return row?.data || defaultProfile();
 }
-
-function defaultProfile() {
-  return {
-    goals: { cal: 2500, prot: 150, carbs: 250, fat: 70, water: 2.5, steps: 10000, sessions: 4, weight: 75, target: 70, height: 175 },
-    meals: [],
-    habits: [],
-    sports: [],
-    calData: {},
-    weightLog: [],
-  };
+async function saveUserData(username, password, data) {
+  await sbUpsert(username, password, data);
 }
 
 // ═══════════════════════════════════════════════
