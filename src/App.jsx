@@ -267,27 +267,28 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit() {
-    setError("");
-    const u = username.trim().toLowerCase();
-    if (!u || !password) { setError("Remplissez tous les champs."); return; }
-
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (mode === "login") {
-        if (!userExists(u)) { setError("Aucun compte trouvé avec ce pseudo."); return; }
-        if (!checkPassword(u, password)) { setError("Mot de passe incorrect."); return; }
-        login(u, remember);
-      } else {
-        if (u.length < 3) { setError("Le pseudo doit faire au moins 3 caractères."); return; }
-        if (password.length < 4) { setError("Le mot de passe doit faire au moins 4 caractères."); return; }
-        if (!createUser(u, password)) { setError("Ce pseudo est déjà utilisé."); return; }
-        login(u, remember);
-      }
-    }, 300);
+async function handleSubmit() {
+  setError("");
+  const u = username.trim().toLowerCase();
+  if (!u || !password) { setError("Remplissez tous les champs."); return; }
+  setLoading(true);
+  try {
+    if (mode === "login") {
+      if (!(await userExists(u))) { setError("Aucun compte trouvé avec ce pseudo."); return; }
+      if (!(await checkPassword(u, password))) { setError("Mot de passe incorrect."); return; }
+      login(u, remember);
+    } else {
+      if (u.length < 3) { setError("Le pseudo doit faire au moins 3 caractères."); return; }
+      if (password.length < 4) { setError("Le mot de passe doit faire au moins 4 caractères."); return; }
+      if (!(await createUser(u, password))) { setError("Ce pseudo est déjà utilisé."); return; }
+      login(u, remember);
+    }
+  } catch {
+    setError("Erreur réseau. Vérifiez votre connexion.");
+  } finally {
+    setLoading(false);
   }
-
+}
   const switchMode = (m) => { setMode(m); setError(""); setUsername(""); setPassword(""); };
 
   return (
